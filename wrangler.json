@@ -1,0 +1,8 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanki-shogai-navi",
+  "compatibility_date": "2026-07-21",
+  "assets": {
+    "directory": "./dist"
+  }
+}
