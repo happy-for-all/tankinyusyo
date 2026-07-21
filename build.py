@@ -382,10 +382,23 @@ def main():
     for pref_name, pref_slug in ALL_PREFECTURES.items():
         df_pref_shogai = df_shogai[df_shogai["_prefecture_derived"] == pref_name]
 
-        records = [
+        records_raw = [
             build_tanki_shogai_record(row, specialty_data)
             for _, row in df_pref_shogai.iterrows()
         ]
+
+        # 👑 バグ修正（2026-07-21 全国データ徹底検証で判明）：
+        # tanki_shogai.csv に、事業所番号・名称・住所が完全に一致する
+        # 重複行が3件（東京都1事業所×3件、山梨県1事業所×2件）存在した。
+        # これにより同一施設が検索結果に2〜3回重複表示されてしまうため、
+        # record_id基準で重複を除去してから出力する（最初の1件を採用）。
+        seen_record_ids = set()
+        records = []
+        for rec in records_raw:
+            if rec["record_id"] in seen_record_ids:
+                continue
+            seen_record_ids.add(rec["record_id"])
+            records.append(rec)
 
         output_path = os.path.join(OUTPUT_DIR, f"data_{pref_slug}.json")
         with open(output_path, "w", encoding="utf-8") as f:

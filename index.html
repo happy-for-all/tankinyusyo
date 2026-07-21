@@ -1080,8 +1080,15 @@ a{ color: var(--color-primary-dark); }
       );
     }
 
+    // 👑 バグ修正（2026-07-21 徹底検証で判明）：以前は.every()で「チェックした
+    // タグを全て満たす事業所のみ」に絞り込んでいたが、これでは複数のタグに
+    // チェックを入れるほど該当件数が減ってしまい（実データ検証では2件が
+    // 該当するはずの条件で0件になる不具合を確認）、相談支援員が「医療的ケア
+    // 対応 or 障害児対応の事業所を広く見たい」という使い方をした場合に
+    // 直感と反する挙動になっていた。.some()に変更し、「チェックしたタグの
+    // いずれかに該当する事業所」を表示するOR条件に修正する。
     if (checkedSpecialties.length > 0){
-      list = list.filter(s => checkedSpecialties.every(tag => {
+      list = list.filter(s => checkedSpecialties.some(tag => {
         const v = s.specialty_tags && s.specialty_tags[tag];
         return v === "specialized" || v === "mentioned";
       }));
