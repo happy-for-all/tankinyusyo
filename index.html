@@ -1526,20 +1526,10 @@ a{ color: var(--color-primary-dark); }
 
     const rows = [
       { label: "定員", get: c => (c.capacity !== null && c.capacity !== undefined) ? `${c.capacity}名` : "情報なし" },
-      { label: "医療的ケア対応（AI調査）", get: c => specialtyCell(c, "medical_care") },
-      { label: "障害児対応（AI調査）", get: c => specialtyCell(c, "child_acceptance") },
-      { label: "強度行動障害対応（AI調査）", get: c => specialtyCell(c, "severe_behavioral_disorder") },
       { label: "電話ステータス", get: c => STATUS_LABELS[c.status] || STATUS_LABELS.unknown },
       { label: "最終電話", get: c => c.lastCalledAt || "-" },
       { label: "おすすめ度", get: c => "★".repeat(c.rating || 0) || "-" },
     ];
-
-    function specialtyCell(c, key){
-      const v = c.specialty_tags && c.specialty_tags[key];
-      if (v === "specialized") return "◎";
-      if (v === "mentioned") return "○（言及）";
-      return "-";
-    }
 
     el.innerHTML = `
       <div class="compare-table-wrap">
