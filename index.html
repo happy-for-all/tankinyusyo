@@ -904,6 +904,9 @@ a{ color: var(--color-primary-dark); }
   // 2. 状態管理
   // ------------------------------------------------------------
   let allStations = [];
+  // 👑 「まだ何も読み込んでいない初期状態」と「読み込んだが0件だった状態」を
+  // 区別するためのフラグ（0件ガードの誤動作防止・2026-07-22追加）
+  let hasLoadedStations = false;
   let userLocation = null;
   let filteredSorted = [];
   let renderedCount = 0;
@@ -996,6 +999,7 @@ a{ color: var(--color-primary-dark); }
         try{
           const dataSets = await Promise.all(nearestSlugs.map(loadPrefectureData));
           allStations = dataSets.flat();
+          hasLoadedStations = true;
           statusEl.textContent = "現在地を取得しました。近い順に表示します。";
           resultSortMode = "distance";
           document.getElementById("resultSortSelect").value = "distance";
@@ -1024,6 +1028,7 @@ a{ color: var(--color-primary-dark); }
 
     if (!slug){
       allStations = [];
+      hasLoadedStations = false;
       document.getElementById("resultsList").innerHTML = "";
       document.getElementById("resultsCount").textContent = "都道府県を選ぶか、現在地から探してください。";
       return;
@@ -1032,6 +1037,18 @@ a{ color: var(--color-primary-dark); }
     document.getElementById("resultsCount").textContent = "データを読み込んでいます…";
     try{
       allStations = await loadPrefectureData(slug);
+      hasLoadedStations = true;
+
+      // 👑 UX改善（2026-07-22 外部レビューより採用・一部調整）：現在地を
+      // 使わず都道府県から検索した場合、「近い順」は距離データが無く
+      // 意味をなさないため、まだ「近い順」のままであれば「市区町村順」に
+      // 自動で切り替える。ただし、利用者が既に定員順・法人名順など
+      // 他の並び順を明示的に選んでいた場合は、その選択を尊重して上書きしない。
+      if (resultSortMode === "distance"){
+        resultSortMode = "city";
+        document.getElementById("resultSortSelect").value = "city";
+      }
+
       applyFiltersAndRender();
     }catch(e){
       console.error(e);
@@ -1065,7 +1082,23 @@ a{ color: var(--color-primary-dark); }
   // 7. フィルタリング・ソート・描画
   // ------------------------------------------------------------
   function applyFiltersAndRender(){
-    if (allStations.length === 0) return;
+    // 👑 バグ修正（2026-07-22 外部レビュー2件で共通指摘）：以前は
+    // allStations.length===0 だけで「まだ何も読み込んでいない初期状態」と
+    // 「その都道府県に実データが正当に0件しかない」を判定していたが、
+    // これでは後者の場合に直前の「読み込んでいます…」という文言が消えない
+    // まま画面が固まってしまう不具合があった。hasLoadedStationsフラグで
+    // 「読み込み済みかどうか」を正しく区別し、初期状態では何もせず、
+    // 読み込み済みで0件の場合のみ明示的に「0件」を描画する。
+    if (allStations.length === 0){
+      if (!hasLoadedStations) return; // まだ何も読み込んでいない初期状態
+      filteredSorted = [];
+      renderedCount = 0;
+      document.getElementById("resultsList").innerHTML =
+        `<div class="empty-state">このエリアには現在、登録されている短期入所事業所がありません。</div>`;
+      document.getElementById("resultsCount").textContent = "0件が該当しました";
+      document.getElementById("btnLoadMore").style.display = "none";
+      return;
+    }
 
     const keyword = document.getElementById("keywordInput").value.trim();
     const checkedSpecialties = Array.from(document.querySelectorAll('#specialtyFilters input:checked')).map(i => i.value);
@@ -1173,12 +1206,19 @@ a{ color: var(--color-primary-dark); }
     const distanceHtml = (s._distance !== undefined && s._distance !== null)
       ? `<span class="card-distance">📍 約${s._distance.toFixed(1)}km</span>` : "";
 
+    // 👑 UX改善（2026-07-22 外部レビューより採用）：法人URLと同じ考え方で、
+    // 事業所電話番号が欠損している場合の代替導線として法人電話番号を表示する。
+    // 事業所電話番号がある場合は表示しない（情報過多を避けるため）。
+    const corpTelHtml = (!s.tel_clean && s.corporation_tel_clean)
+      ? ` ｜ <a href="tel:${s.corporation_tel_clean}">📞 法人電話：${escapeHtml(s.corporation_tel)}</a>`
+      : "";
+
     const corpHtml = s.corporation_name
       ? `<p class="card-corp">法人：${escapeHtml(s.corporation_name)}${
           (!s.url && s.corporation_url)
             ? ` ｜ <a href="${escapeAttr(s.corporation_url)}" target="_blank" rel="noopener noreferrer">法人サイトを見る（法人全体のサイトです）</a>`
             : ""
-        }</p>`
+        }${corpTelHtml}</p>`
       : "";
 
     const mapUrl = buildMapUrl(s);
@@ -1493,7 +1533,12 @@ a{ color: var(--color-primary-dark); }
       list.sort((a, b) => {
         const aUnconfirmed = a.status === "unknown" ? 0 : 1;
         const bUnconfirmed = b.status === "unknown" ? 0 : 1;
-        return aUnconfirmed - bUnconfirmed;
+        if (aUnconfirmed !== bUnconfirmed) return aUnconfirmed - bUnconfirmed;
+        // 👑 安定性の明示的保証（2026-07-22 外部レビューより採用）：
+        // モダンブラウザのArray.sortはES2019以降で安定ソートが規定
+        // されているため本来は不要だが、念のため未確認同士・確認済み
+        // 同士では元の追加順（＝候補配列内の並び）を保つよう明示する。
+        return candidates.indexOf(a) - candidates.indexOf(b);
       });
     }
     // "added"（追加順）はcandidates配列の順序をそのまま使う

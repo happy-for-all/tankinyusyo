@@ -211,6 +211,14 @@ def make_record_id(jigyosho_no, name, address):
 #    ★注意：これはAIによるホームページ内容の推定であり、断定ではない。
 #    サイト側には必ず「AI調査・要確認」の免責を併記すること。
 # ------------------------------------------------------------
+# 👑 ログ改善（2026-07-22 外部レビューより採用）：build_specialty_tags()は
+# 重複除去（dedup）前の生データ行に対して呼ばれるため、同一事業所番号の
+# 行が複数あると同じ警告が複数回出力されてしまう。同一の(事業所番号,
+# カテゴリ)の組み合わせについては、1回のビルド実行につき1回だけ警告を
+# 出すよう、既に警告済みの組み合わせを記録しておく。
+_warned_specialty_keys = set()
+
+
 def build_specialty_tags(jigyosho_no, specialty_data):
     """
     事業所番号をキーにAIリサーチ結果を検索し、各カテゴリの
@@ -232,10 +240,13 @@ def build_specialty_tags(jigyosho_no, specialty_data):
         if isinstance(cat_result, dict):
             tags[cat] = cat_result.get("status")  # "specialized" / "mentioned" / None
         elif cat_result:
-            print(
-                f"  警告：事業所番号{jigyosho_no}のカテゴリ「{cat}」の"
-                f"形式が不正なためスキップしました：{cat_result!r}"
-            )
+            warn_key = (jigyosho_no, cat)
+            if warn_key not in _warned_specialty_keys:
+                _warned_specialty_keys.add(warn_key)
+                print(
+                    f"  警告：事業所番号{jigyosho_no}のカテゴリ「{cat}」の"
+                    f"形式が不正なためスキップしました：{cat_result!r}"
+                )
 
     return tags
 
