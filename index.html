@@ -109,7 +109,6 @@ a{ color: var(--color-primary-dark); }
   color: #6B5623;
 }
 .disclaimer-banner strong{ color: #8A5A0E; }
-#specialtyNotice{ margin-top: 8px; font-weight: 700; }
 
 /* 👑 再確認日リマインダー：本日が再確認日の候補があればページ最上部に表示 */
 .recheck-banner{
@@ -189,33 +188,6 @@ a{ color: var(--color-primary-dark); }
   font-size: 15px;
 }
 
-.filter-group{ margin-bottom: 12px; }
-.filter-group .filter-label{
-  font-size: 13px;
-  color: var(--color-text-muted);
-  margin-bottom: 6px;
-  font-weight:700;
-}
-.chip-list{ display:flex; flex-wrap: wrap; gap: 8px; }
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding: 7px 14px;
-  border-radius: var(--radius-pill);
-  border: 1.5px solid var(--color-border);
-  background:#fff;
-  font-size: 13px;
-  cursor:pointer;
-  user-select:none;
-}
-.chip input{ display:none; }
-.chip.checked{
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color:#fff;
-}
-
 /* ============================================================
    4. 結果エリア
    ============================================================ */
@@ -234,13 +206,6 @@ a{ color: var(--color-primary-dark); }
   margin-bottom: 14px;
   color: var(--color-text-muted);
   font-size: 14px;
-}
-.results-meta select{
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1.5px solid var(--color-border);
-  font-family: var(--font-body);
-  font-size: 13px;
 }
 
 .station-card{
@@ -613,7 +578,6 @@ a{ color: var(--color-primary-dark); }
   <div class="disclaimer-banner">
     <strong>ご利用にあたって：</strong>
     本サイトは、WAM NET「障害福祉サービス等情報公表システム」のオープンデータ（短期入所）をもとに作成しています。空き状況・受け入れ可否は変動するため、必ず事業所へお電話でご確認ください。
-    <div id="specialtyNotice"></div>
   </div>
 </header>
 
@@ -635,15 +599,6 @@ a{ color: var(--color-primary-dark); }
     </select>
     <input type="text" id="keywordInput" placeholder="事業所名・市区町村で検索">
   </div>
-
-  <div class="filter-group">
-    <div class="filter-label">特徴で絞り込む（AI調査・要確認）</div>
-    <div class="chip-list" id="specialtyFilters">
-      <label class="chip"><input type="checkbox" value="medical_care">医療的ケア対応</label>
-      <label class="chip"><input type="checkbox" value="child_acceptance">障害児対応</label>
-      <label class="chip"><input type="checkbox" value="severe_behavioral_disorder">強度行動障害対応</label>
-    </div>
-  </div>
 </div>
 
 <!-- ============================================================
@@ -652,12 +607,6 @@ a{ color: var(--color-primary-dark); }
 <div class="results-wrap">
   <div class="results-meta">
     <span id="resultsCount">現在地を取得するか、都道府県を選んでください。</span>
-    <select id="resultSortSelect">
-      <option value="distance">近い順</option>
-      <option value="city">市区町村順</option>
-      <option value="corporation">法人名順</option>
-      <option value="capacity">定員が多い順</option>
-    </select>
   </div>
   <div id="resultsList"></div>
   <div class="load-more-wrap">
@@ -911,7 +860,6 @@ a{ color: var(--color-primary-dark); }
   let filteredSorted = [];
   let renderedCount = 0;
   let manifestData = null;
-  let resultSortMode = "distance";
   const prefectureDataCache = {};
 
   // ------------------------------------------------------------
@@ -924,25 +872,11 @@ a{ color: var(--color-primary-dark); }
 
       document.getElementById("footerManifestInfo").textContent =
         `短期入所（障害福祉）：${manifestData.shogai_tanki_csv_source}／全国${manifestData.total_count}件を掲載`;
-
-      renderSpecialtyNotice();
     }catch(err){
       console.error(err);
       document.getElementById("resultsList").innerHTML =
         `<div class="empty-state">データの読み込みに失敗しました。時間をおいて再度お試しください。</div>`;
     }
-  }
-
-  function renderSpecialtyNotice(){
-    const el = document.getElementById("specialtyNotice");
-    if (!el) return;
-    if (!manifestData || !manifestData.specialty_researched_prefectures || manifestData.specialty_researched_prefectures.length === 0){
-      el.textContent = "※「医療的ケア対応」等の特徴タグは、現在AIによるホームページ調査を準備中です。順次エリアを拡大予定です。";
-      return;
-    }
-    const names = manifestData.specialty_researched_prefectures
-      .map(slug => PREFECTURE_LABELS[slug] || slug).join("・");
-    el.textContent = `※特徴タグ（医療的ケア対応等）の調査は、現在${names}のみ調査済みです。それ以外の地域は基本情報のみの表示となります。`;
   }
 
   async function loadPrefectureData(slug){
@@ -1001,8 +935,6 @@ a{ color: var(--color-primary-dark); }
           allStations = dataSets.flat();
           hasLoadedStations = true;
           statusEl.textContent = "現在地を取得しました。近い順に表示します。";
-          resultSortMode = "distance";
-          document.getElementById("resultSortSelect").value = "distance";
           applyFiltersAndRender();
         }catch(e){
           console.error(e);
@@ -1038,17 +970,6 @@ a{ color: var(--color-primary-dark); }
     try{
       allStations = await loadPrefectureData(slug);
       hasLoadedStations = true;
-
-      // 👑 UX改善（2026-07-22 外部レビューより採用・一部調整）：現在地を
-      // 使わず都道府県から検索した場合、「近い順」は距離データが無く
-      // 意味をなさないため、まだ「近い順」のままであれば「市区町村順」に
-      // 自動で切り替える。ただし、利用者が既に定員順・法人名順など
-      // 他の並び順を明示的に選んでいた場合は、その選択を尊重して上書きしない。
-      if (resultSortMode === "distance"){
-        resultSortMode = "city";
-        document.getElementById("resultSortSelect").value = "city";
-      }
-
       applyFiltersAndRender();
     }catch(e){
       console.error(e);
@@ -1058,17 +979,6 @@ a{ color: var(--color-primary-dark); }
   });
 
   document.getElementById("keywordInput").addEventListener("input", debounce(applyFiltersAndRender, 250));
-  document.querySelectorAll('#specialtyFilters input')
-    .forEach(el => el.addEventListener("change", (e) => {
-      const chip = e.target.closest(".chip");
-      if (chip) chip.classList.toggle("checked", e.target.checked);
-      applyFiltersAndRender();
-    }));
-
-  document.getElementById("resultSortSelect").addEventListener("change", (e) => {
-    resultSortMode = e.target.value;
-    applyFiltersAndRender();
-  });
 
   function debounce(fn, delay){
     let timer;
@@ -1101,7 +1011,6 @@ a{ color: var(--color-primary-dark); }
     }
 
     const keyword = document.getElementById("keywordInput").value.trim();
-    const checkedSpecialties = Array.from(document.querySelectorAll('#specialtyFilters input:checked')).map(i => i.value);
 
     let list = allStations;
 
@@ -1113,28 +1022,14 @@ a{ color: var(--color-primary-dark); }
       );
     }
 
-    // 👑 バグ修正（2026-07-21 徹底検証で判明）：以前は.every()で「チェックした
-    // タグを全て満たす事業所のみ」に絞り込んでいたが、これでは複数のタグに
-    // チェックを入れるほど該当件数が減ってしまい（実データ検証では2件が
-    // 該当するはずの条件で0件になる不具合を確認）、相談支援員が「医療的ケア
-    // 対応 or 障害児対応の事業所を広く見たい」という使い方をした場合に
-    // 直感と反する挙動になっていた。.some()に変更し、「チェックしたタグの
-    // いずれかに該当する事業所」を表示するOR条件に修正する。
-    if (checkedSpecialties.length > 0){
-      list = list.filter(s => checkedSpecialties.some(tag => {
-        const v = s.specialty_tags && s.specialty_tags[tag];
-        return v === "specialized" || v === "mentioned";
-      }));
-    }
-
-    // 距離は現在地がある場合のみ算出（並び替えが「近い順」以外でも表示には使う）
+    // 距離は現在地がある場合のみ算出
     list = list.map(s => ({
       ...s,
       _distance: (userLocation && s.lat && s.lon)
         ? haversineKm(userLocation.lat, userLocation.lon, s.lat, s.lon) : null
     }));
 
-    list = sortResultList(list, resultSortMode);
+    list = sortByDistance(list);
 
     filteredSorted = list;
     renderedCount = 0;
@@ -1143,26 +1038,18 @@ a{ color: var(--color-primary-dark); }
     renderNextPage();
   }
 
-  function sortResultList(list, mode){
+  // 👑 シンプル化（2026-07-22）：以前は「近い順／市区町村順／法人名順／
+  // 定員が多い順」の4種類の並び替えを用意していたが、ちゃろさんのご要望
+  // により「近い順」のみのシンプルな検索に変更。現在地が無い場合は
+  // 距離情報自体が無いため、元のデータ順のまま安定して表示される。
+  function sortByDistance(list){
     const sorted = [...list];
-    if (mode === "distance"){
-      sorted.sort((a, b) => {
-        if (a._distance === null && b._distance === null) return 0;
-        if (a._distance === null) return 1;
-        if (b._distance === null) return -1;
-        return a._distance - b._distance;
-      });
-    } else if (mode === "city"){
-      sorted.sort((a, b) => (a.city || "").localeCompare(b.city || "", "ja") || (a.name||"").localeCompare(b.name||"","ja"));
-    } else if (mode === "corporation"){
-      sorted.sort((a, b) => (a.corporation_name || "").localeCompare(b.corporation_name || "", "ja") || (a.name||"").localeCompare(b.name||"","ja"));
-    } else if (mode === "capacity"){
-      sorted.sort((a, b) => {
-        const ca = (a.capacity === null || a.capacity === undefined) ? -1 : a.capacity;
-        const cb = (b.capacity === null || b.capacity === undefined) ? -1 : b.capacity;
-        return cb - ca;
-      });
-    }
+    sorted.sort((a, b) => {
+      if (a._distance === null && b._distance === null) return 0;
+      if (a._distance === null) return 1;
+      if (b._distance === null) return -1;
+      return a._distance - b._distance;
+    });
     return sorted;
   }
 
