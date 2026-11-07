@@ -46,7 +46,7 @@ SPECIALTY_JSON_PATH = "specialty_result.json"    # AIリサーチ結果（医療
 OUTPUT_DIR = "dist"
 
 # CSVの出典表記（ダウンロード元ページの表記に合わせて手動で更新してください）
-SHOGAI_TANKI_CSV_SOURCE_LABEL = "2026年3月末時点（WAM NET・障害福祉サービス等情報公表システム）"
+SHOGAI_TANKI_CSV_SOURCE_LABEL = "2026年9月末時点（WAM NET・障害福祉サービス等情報公表システム）"
 
 # サービス区分バッジ（フロント表示用の固定ラベル）
 SERVICE_TYPE_TANKI_SHOGAI = "disability_short_stay"
